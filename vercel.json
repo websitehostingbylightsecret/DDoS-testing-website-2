@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/counter_strike.html" }
+    { "source": "/", "destination": "/index.html" }
   ]
 }
